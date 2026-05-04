@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: bmw-m2
+  kafka:
+    bootstrap-servers: ${kafka.bootstrap-servers}
+
+server:
+  port: 8081
+
+# Kafka Configuration
+kafka:
+  bootstrap-servers: localhost:9092
+  topics:
+    page-views: page_views
+    ad-clicks: ad_clicks
+  consumer:
+    group-id: stream-processor-group
+    concurrency: 3  # Number of concurrent consumer threads (one per partition)
+
+# Output Configuration
+output:
+  database:
+    path: ./output/attributed_page_views.db
+
+# Watermark Configuration
+watermark:
+  allowed-lateness-minutes: 2
+  attribution-window-minutes: 30
+
+# Actuator / Metrics
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: bmw-m2
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.bmw.m2.processor: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ./logs/stream-processor.log
