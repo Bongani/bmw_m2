@@ -164,9 +164,9 @@ def generate_malformed_events():
         # Wrong type for event_time (integer instead of string)
         #('ad_clicks', {'user_id': 'user_bad_1', 'event_time': 99999, 'campaign_id': 'campaign_X', 'click_id': 'bad_click_1'}),
         # Missing required field (no event_time)
-        # ('page_views', {'user_id': 'user_bad_2', 'url': 'https://example.com/bad', 'event_id': 'bad_pv_1'}),
+        ('page_views', {'user_id': 'user_bad_2', 'url': 'https://example.com/bad', 'event_id': 'bad_pv_1'}),
         # Completely invalid JSON structure
-        ('ad_clicks', 'not-a-json-object'),
+        #('ad_clicks', 'not-a-json-object'),
     ]
 
 

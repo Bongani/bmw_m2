@@ -1,5 +1,7 @@
 package com.bmw.m2.processor.state;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -7,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -25,14 +28,19 @@ public class WatermarkTracker {
 
     private final Duration allowedLateness;
     private final Duration attributionWindow;
+    private final MeterRegistry meterRegistry;
     // Hint: Use ConcurrentHashMap<Integer, Instant> for thread-safe partition watermarks
     private final ConcurrentHashMap<Integer, Instant> partitionWatermarkHashMap = new ConcurrentHashMap<>();
+    // Partitions are dynamic (not known at startup), so gauges are registered lazily on the first updateWatermark call per partition
+    private final Set<Integer> registeredPartitions = ConcurrentHashMap.newKeySet();
 
     public WatermarkTracker(
             @Value("${watermark.allowed-lateness-minutes:2}") int allowedLatenessMinutes,
-            @Value("${watermark.attribution-window-minutes:30}") int attributionWindowMinutes) {
+            @Value("${watermark.attribution-window-minutes:30}") int attributionWindowMinutes,
+            MeterRegistry meterRegistry) {
         this.allowedLateness = Duration.ofMinutes(allowedLatenessMinutes);
         this.attributionWindow = Duration.ofMinutes(attributionWindowMinutes);
+        this.meterRegistry = meterRegistry;
         log.info("Initialized WatermarkTracker with allowed lateness: {} minutes, attribution window: {} minutes",
                 allowedLatenessMinutes, attributionWindowMinutes);
     }
@@ -48,9 +56,26 @@ public class WatermarkTracker {
         Instant current = getWatermark(partition);
         if (eventTime.isAfter(current)) {
             partitionWatermarkHashMap.put(partition, eventTime);
+
+            registerWatermarkGauge(partition);
             log.debug("Watermark advanced for partition {}: {} -> {}", partition, current, eventTime);
         } else {
             log.debug("Watermark unchanged for partition {} (event time {} is not after current {})", partition, eventTime, current);
+        }
+    }
+
+    /**
+     * Registers a Micrometer gauge for the watermark position of a partition, once per partition.
+     * Micrometer holds a reference to partitionWatermarkHashMap and calls this lambda every time Prometheus scrapes (every 15s).
+     * It reads the current value from the map at scrape time — so it always reflects the latest watermark
+     *
+     */
+    private void registerWatermarkGauge(int partition) {
+        if (registeredPartitions.add(partition)) {
+            meterRegistry.gauge("watermark.position.seconds",
+                    Tags.of("partition", String.valueOf(partition)),
+                    partitionWatermarkHashMap,
+                    map -> map.getOrDefault(partition, Instant.MIN).getEpochSecond());
         }
     }
 
@@ -70,7 +95,7 @@ public class WatermarkTracker {
      */
     public boolean isTooLate(int partition, Instant eventTime) {
         Instant watermark = getWatermark(partition);
-        if (watermark == Instant.MIN) {
+        if (watermark.equals(Instant.MIN)) {
             return false;
         }
         Instant cutoffTime = watermark.minus(allowedLateness);

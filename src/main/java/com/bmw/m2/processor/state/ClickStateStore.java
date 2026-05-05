@@ -51,24 +51,9 @@ public class ClickStateStore {
     public void addClick(AdClickEvent click) {
         String userId = click.getUserId();
 
-        // Get or create the lock for this user
-        if (!userLocks.containsKey(userId)) {
-            userLocks.put(userId, new ReentrantLock());
-        }
-        ReentrantLock lock = userLocks.get(userId);
+        ReentrantLock lock = getOrCreateLock(userId);
+        TreeSet<AdClickEvent> userClicks = getOrCreateClickSet(userId);
 
-        // Get or create the sorted click set for this user in 2 levels
-        // level 1-> sort by click eventTime
-        // level 2-> sort by id if 2 events occur at the same time
-        if (!clickStateHashMap.containsKey(userId)) {
-            Comparator<AdClickEvent> byEventTimeThenClickId = Comparator
-                    .comparing(AdClickEvent::getEventTime)
-                    .thenComparing(AdClickEvent::getClickId);
-            clickStateHashMap.put(userId, new TreeSet<>(byEventTimeThenClickId));
-        }
-        TreeSet<AdClickEvent> userClicks = clickStateHashMap.get(userId);
-
-        // Lock and add the click
         lock.lock();
         try {
             userClicks.add(click);
@@ -98,7 +83,7 @@ public class ClickStateStore {
             return null;
         }
 
-        ReentrantLock lock = userLocks.get(userId);
+        ReentrantLock lock = getOrCreateLock(userId);
         lock.lock();
         try {
             // Calculate the start of the 30-minute attribution window
@@ -182,6 +167,31 @@ public class ClickStateStore {
 
         log.info("Eviction complete: removed {} clicks older than {}", evictedCount, cutoffTime);
         return evictedCount;
+    }
+
+    /**
+     * Get or create the lock for this user. Helps with thread safety when accessing the user's click set.
+     *
+     * @param userId
+     * @return
+     */
+    private ReentrantLock getOrCreateLock(String userId) {
+        return userLocks.computeIfAbsent(userId, k -> new ReentrantLock());
+    }
+
+    /**
+     * Get or create the sorted click set for this user in 2 levels
+     *
+     * level 1-> sort by click eventTime
+     * level 2-> sort by id if 2 events occur at the same time
+     * @param userId
+     * @return
+     */
+    private TreeSet<AdClickEvent> getOrCreateClickSet(String userId) {
+        return clickStateHashMap.computeIfAbsent(userId, k ->
+                new TreeSet<>(Comparator
+                        .comparing(AdClickEvent::getEventTime)
+                        .thenComparing(AdClickEvent::getClickId)));
     }
 
     /**

@@ -39,7 +39,7 @@ class JoinEngineTest {
         lateEventSink = new LateEventSink();
         lateEventSink.initWithConnection(connection);
 
-        WatermarkTracker watermarkTracker = new WatermarkTracker(2, 30);
+        WatermarkTracker watermarkTracker = new WatermarkTracker(2, 30, new SimpleMeterRegistry());
         ClickStateStore clickStateStore = new ClickStateStore();
 
         joinEngine = new JoinEngine(clickStateStore, watermarkTracker, outputSink, lateEventSink, new SimpleMeterRegistry());
@@ -240,7 +240,7 @@ class JoinEngineTest {
         // Crash — offset never acknowledged, Kafka will replay from last committed offset.
         // Simulate restart: fresh in-memory state, same durable SQLite connection.
         JoinEngine restarted = new JoinEngine(
-                new ClickStateStore(), new WatermarkTracker(2, 30),
+                new ClickStateStore(), new WatermarkTracker(2, 30, new SimpleMeterRegistry()),
                 outputSink, lateEventSink, new SimpleMeterRegistry());
 
         // Replay the exact same events from Kafka

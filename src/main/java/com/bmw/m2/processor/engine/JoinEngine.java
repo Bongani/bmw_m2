@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -107,10 +108,10 @@ public class JoinEngine {
         meterRegistry.counter("events.pageviews.processed").increment();
 
         // Buffer before updating the watermark so no concurrent flush can miss this page view
-        if (!pageViewBufferHashMap.containsKey(partition)) {
-            pageViewBufferHashMap.put(partition, new ArrayList<>());
-        }
-        pageViewBufferHashMap.get(partition).add(pageView);
+        // atomic operation for pageView
+        // mapping checks if key (creates if not), then adds pageView
+        pageViewBufferHashMap.computeIfAbsent(partition, k -> Collections.synchronizedList(new ArrayList<>()))
+                             .add(pageView);
 
         // Page views advance the watermark by eventTime - allowedLateness (conservative shift).
         // This keeps the watermark from overtaking the lateness window of any in-flight click.
@@ -128,7 +129,7 @@ public class JoinEngine {
     public void evictOldClicks() {
         Instant minWatermark = watermarkTracker.getMinWatermark();
 
-        if (minWatermark != Instant.MIN) {
+        if (!minWatermark.equals(Instant.MIN)) {
             Instant cutoffTime = minWatermark
                     .minus(watermarkTracker.getAttributionWindow())
                     .minus(watermarkTracker.getAllowedLateness());
@@ -166,16 +167,18 @@ public class JoinEngine {
         }
 
         List<PageViewEvent> toEmit = new ArrayList<>();
-        for (PageViewEvent pageView : partitionBuffer) {
-            Instant safeEmitTime = pageView.getEventTime().plus(watermarkTracker.getAllowedLateness());
-            if (!watermark.isBefore(safeEmitTime)) {
-                toEmit.add(pageView);
+        synchronized (partitionBuffer) {
+            //ensuring list is synchrnozed during loop
+            for (PageViewEvent pageView : partitionBuffer) {
+                Instant safeEmitTime = pageView.getEventTime().plus(watermarkTracker.getAllowedLateness());
+                if (!watermark.isBefore(safeEmitTime)) {
+                    toEmit.add(pageView);
+                }
             }
-        }
-
-        for (PageViewEvent pageView : toEmit) {
-            emitPageView(pageView);
-            partitionBuffer.remove(pageView);
+            for (PageViewEvent pageView : toEmit) {
+                emitPageView(pageView);
+                partitionBuffer.remove(pageView);
+            }
         }
 
         log.debug("Flushed {} page views for partition {}, {} remaining in buffer",

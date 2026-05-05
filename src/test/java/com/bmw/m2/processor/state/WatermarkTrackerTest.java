@@ -1,5 +1,6 @@
 package com.bmw.m2.processor.state;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ class WatermarkTrackerTest {
 
     @BeforeEach
     void setUp() {
-        tracker = new WatermarkTracker(2, 30);
+        tracker = new WatermarkTracker(2, 30, new SimpleMeterRegistry());
     }
 
     @Test

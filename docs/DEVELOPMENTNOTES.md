@@ -1,3 +1,6 @@
+#TODO: events with null timstamps should automatically go to the dead letter topic, and not cause the processor to crash
+with a NullPointerException but for some reason JSONException is not being thrown
+
 ## Other design decisions to think about:
 
 Technology choices:
@@ -53,9 +56,11 @@ Springboot + Kafka client + SQLite is a simple stack that gets the job done for 
 - Kafka SASL/TLS authentication — the current config uses plaintext
 - Database credentials and bootstrap server addresses should come from a secrets manager (Vault, AWS Secrets Manager), not environment variables in docker-compose
 
-#### Multi-tenancy / correctness edge cases
-- What if a user has thousands of clicks in the window? The TreeSet per user is unbounded until eviction — add a per-user click count cap
-- Clock skew between producers can cause events from one producer to appear late relative to another — a small allowedLateness buffer helps but doesn't fully solve it
+#### Partioning and load balancing
+- With multiple instances, Kafka partitions would be distributed among them. Each instance would only consume from
+- Have to chose a partition key that ensures all events for a given user land on the same partition, so the processor 
+can maintain per-user state without cross-partition lookups. user_id is a natural choice.
+- The partition also has to be scalable and balanced — if a few users generate much more traffic than others, their partitions could become hotspots.
 
 
 ## checkpointing
@@ -99,7 +104,14 @@ min(all partition watermarks) - 30min - allowedLateness
 
 This ensures clicks are only evicted from memory once no future page view from any partition could possibly still attribute to them.
 
+## Load Testing remarks
 
+### To Fix on load test suite:
+- seems to  load test has lots of dropped events (update scenario)
+- seems to only go to kafka listener 0 & 1 not 2...thought we had 3 threads
+- Very few attributed page views (update scenario)
+- Update to more campaigns and users to get more attributions
+- Update Grafana dashboard to show more interesting metrics 
 
 ---
 ## JUNK NOTES
@@ -111,13 +123,6 @@ docker-compose up -d --build bmw-m2
 
 Document to keep notes and questions while implementing
 
-Command to rebuild with docker-compose:
-```bash
-docker-compose up -d --build bmw-m2
-```
-
-#TODO: events with null timstamps should automatically go to the dead letter topic, and not cause the processor to crash
-with a NullPointerException but for some reason JSONException is not being thrown
 
 ## Known bug: integer event_time bypasses DLT routing
 
@@ -133,20 +138,15 @@ dropped as late (watermark is far past 1970).
 (subclass of `JsonProcessingException`), which the `DefaultErrorHandler` would route
 straight to `ad_clicks.DLT` without retrying.
 
-**Fix (deferred):** configure coercion on the `ObjectMapper` in `KafkaConsumerConfig`:
-```java
-mapper.coercionConfigFor(LogicalType.DateTime)
-      .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail);
-```
-Imports needed: `com.fasterxml.jackson.databind.cfg.CoercionAction`,
-`CoercionInputShape`, `com.fasterxml.jackson.databind.type.LogicalType`.
-This makes Jackson throw on any integer-to-DateTime coercion, routing the event to DLT
-as intended. A unit test should verify `objectMapper().readValue(...)` throws
-`JsonProcessingException` for `{"event_time": 99999, ...}`.
+**Fix (deferred):** Have a custom validation step after deserialization that checks the type of `event_time` and throws an exception if it's not a string.
+This would trigger the existing error handling logic to route the event to DLT.
 
-- to kafka data will be sent randomly unless we specify the partition key
-  -> what happens if there is no events in a partion, then we don't get watermrks. Howeversince we are going randm
-  or round robbin we should be getting watermarks from all the partitions. If we are not getting watermarks from a partition then it means there is no data in that partition.
+
+---
+
+- How to have partition tolerance across multiple instance?
+  - Basically how would I go about doing the partitioning?
+  - https://docs.spring.io/spring-cloud-stream/reference/kafka/kafka-binder/partitions.html
 
 - what happens if no events come in after awhile? Should we flush
   -correctness of data (can assume data is always correct in terms of format and values)
@@ -154,24 +154,16 @@ as intended. A unit test should verify `objectMapper().readValue(...)` throws
 - what happens repartitioning happens
 - What happen if database fails?
   -scalability, availability, reliability,partitioning, replication
-  Does hashmap need to be initiated
-  -github action
-  -containirization
-  -load testing
+ 
+-github action
+- unit test coverage checker
+
 ---
-Flushing for stale events stuck in buffer:
 
-Since pv_6 is the last event the generator sends, no subsequent event ever arrives to push the watermark past 13:22:00. The buffer flush never fires. pv_6 sits in memory until the app stops — and is never written to SQLite.
+evictOldClicks() can cause it's own thread safety issues if it runs concurrently with processPageView.
+Be sure to walk through the logic carefully to ensure.
+---
 
-This also explains the order you see: pv_4 is emitted by pv_6's arrival, not its own. When pv_6 is processed, the watermark jumps to 13:20:00, and emitSafePageViews finds pv_4 (safe-emit = 13:12:00) is now unblocked and      
-flushes it.
-                                                                                                                                                                                                                                   
----                                                                                                                                                                                                                              
-The fix: idle flush in the scheduled task.
-
-The @Scheduled eviction task already runs every 30s. We can extend it to also flush buffered page views using wall-clock time as a stand-in watermark when no real events are arriving:
-
-The rule would be: if Instant.now() >= pv.eventTime + allowedLateness, it's safe to emit — the real world has moved past the lateness window even if no Kafka event has arrived.
 
 ----
 

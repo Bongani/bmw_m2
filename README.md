@@ -82,6 +82,16 @@ The stream processor will start automatically once Kafka is healthy.
 docker-compose logs -f bmw-m2
 ```
 
+**rebuild docker image**
+```bash
+docker-compose build bmw-m2
+```
+or to rebuild and start the processor container only (useful for development iterations):
+```bash
+docker-compose up -d --build bmw-m2 
+```
+
+
 **Kafka UI:** http://localhost:8080
 
 ---
@@ -95,6 +105,11 @@ docker-compose up -d zookeeper kafka kafka-ui
 # Terminal 2 — start stream processor
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 mvn spring-boot:run
+```
+
+If you need to repackage after some code changes:
+```bash
+ mvn clean package -q
 ```
 
 ---
@@ -252,6 +267,16 @@ Switch to the Graph tab (not Table) to see it over time.
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 mvn test
 ```
+
+The build enforces a minimum line coverage — it will fail if coverage drops below this threshold.
+
+After running tests, the HTML coverage report is generated at:
+
+```
+target/site/jacoco/index.html
+```
+
+Open it in a browser for a full breakdown of coverage per class and package.
 
 ---
 
