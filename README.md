@@ -40,6 +40,7 @@ bmw_m2cs/
 │       └── dashboards/                        # Attribution dashboard + Spring Boot templates
 ├── docs/                                      # Documentation and design artifacts
 │   ├── DESIGN.md                              # Architecture diagram and key design decisions
+│   ├── DEVELOPMENTNOTES.md                    # Rough notebook made during develpment
 │   ├── SCENARIOS.md                           # Visual timeline of all 6 test scenarios
 ├── docker-compose.yml                         # Full stack: Kafka, processor, Prometheus, Grafana
 ├── Dockerfile                                 # Stream processor image
@@ -157,6 +158,12 @@ Expected results if ran against the provided data generator (data_generator.py):
 | pv_4 | user_4 | null | window miss: click is 35min before page view |
 | pv_5 | user_5 | null | late click: arrives beyond 2min allowed lateness |
 | pv_6 | user_6 | null | no click exists for user |
+
+Expected late events in `late_events` table:
+
+| event_id | event_type | reason |
+|---|---|---|
+| click_5 | ad_click | event time 12:40 arrives after watermark cutoff 12:41 (pv_5 at 12:45 advanced watermark to 12:43) |
 
 ---
 
