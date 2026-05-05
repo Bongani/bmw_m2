@@ -72,8 +72,8 @@ public class JoinEngine {
         }
 
         clickStore.addClick(click);
-        meterRegistry.counter("events.clicks.processed").increment();
         watermarkTracker.updateWatermark(partition, eventTime);
+        meterRegistry.counter("events.clicks.processed").increment();
         emitSafePageViews(partition, watermarkTracker.getWatermark(partition));
     }
 
@@ -105,8 +105,6 @@ public class JoinEngine {
             return;
         }
 
-        meterRegistry.counter("events.pageviews.processed").increment();
-
         // Buffer before updating the watermark so no concurrent flush can miss this page view
         // atomic operation for pageView
         // mapping checks if key (creates if not), then adds pageView
@@ -117,6 +115,7 @@ public class JoinEngine {
         // This keeps the watermark from overtaking the lateness window of any in-flight click.
         watermarkTracker.updateWatermark(partition, eventTime.minus(watermarkTracker.getAllowedLateness()));
 
+        meterRegistry.counter("events.pageviews.processed").increment();
         emitSafePageViews(partition, watermarkTracker.getWatermark(partition));
     }
 
