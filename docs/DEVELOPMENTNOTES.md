@@ -159,13 +159,13 @@ This would trigger the existing error handling logic to route the event to DLT.
 - unit test coverage checker
 
 ---
+evictOldClicks Cautions:
+
 
 evictOldClicks() can cause it's own thread safety issues if it runs concurrently with processPageView.
 Be sure to walk through the logic carefully to ensure.
 ---
 
-
-----
 
 
                                                                                      

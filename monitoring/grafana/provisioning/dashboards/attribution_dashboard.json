@@ -180,6 +180,15 @@
           "refId": "A"
         }
       ],
+      "transformations": [
+        {
+          "id": "rowsToFields",
+          "options": {
+            "nameField": "attributed_campaign_id",
+            "valueField": "value"
+          }
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -210,6 +219,15 @@
           "rawQueryText": "SELECT event_type as metric, COUNT(*) as value FROM late_events GROUP BY event_type",
           "queryType": "table",
           "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "rowsToFields",
+          "options": {
+            "nameField": "metric",
+            "valueField": "value"
+          }
         }
       ]
     },

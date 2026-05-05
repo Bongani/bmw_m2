@@ -1,5 +1,5 @@
 {
-  "name": "Data Engineering Challenge",
+  "name": "BMW M2 Challenge",
   "dockerComposeFile": "../docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/workspace",
@@ -23,7 +23,7 @@
     }
   },
 
-  "postCreateCommand": "pip install -r requirements.txt",
+  "postCreateCommand": "mvn dependency:resolve -q && cd datagenerator && uv sync",
 
   "postStartCommand": "sudo chmod 666 /var/run/docker.sock",
 

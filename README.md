@@ -91,9 +91,6 @@ or to rebuild and start the processor container only (useful for development ite
 docker-compose up -d --build bmw-m2 
 ```
 
-
-**Kafka UI:** http://localhost:8080
-
 ---
 
 ## Running on host (development)
@@ -167,6 +164,7 @@ Expected results if ran against the provided data generator (data_generator.py):
 
 | Service | URL | Credentials |
 |---|---|---|
+| Kafka UI | http://localhost:8080 | — |
 | Prometheus | http://localhost:9090 | — |
 | Grafana | http://localhost:3000 | `admin` / `admin` |
 

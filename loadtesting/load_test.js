@@ -26,7 +26,7 @@ export const options = {
     },
 };
 
-const CAMPAIGNS = ['campaign_A', 'campaign_B', 'campaign_C', 'campaign_D', 'campaign_E'];
+const CAMPAIGNS = ['campaign_A', 'campaign_B', 'campaign_C', 'campaign_D', 'campaign_E', 'campaign_F'];
 const USER_COUNT = 50;
 
 function toEventTime(ms) {
@@ -35,17 +35,22 @@ function toEventTime(ms) {
 
 export default function () {
     const userId = `user_${Math.floor(Math.random() * USER_COUNT)}`;
-
-    // Event time: random offset within the last 10 minutes
     const now = new Date();
-    const eventTimeMs = now.getTime() - Math.floor(Math.random() * 10 * 60 * 1000);
+
+    const campaign = CAMPAIGNS[Math.floor(Math.random() * CAMPAIGNS.length)];
+
+    // campaign_F: pin click to 1 minute behind now — always within the 2-minute lateness window, never dropped
+    // Others: random offset within the last 4 minutes — events 2-4 min behind may be dropped as late
+    const eventTimeMs = campaign === 'campaign_F'
+        ? now.getTime() - 60 * 1000
+        : now.getTime() - Math.floor(Math.random() * 4 * 60 * 1000);
     const eventTime = toEventTime(eventTimeMs);
 
     // Produce 1 click
     const click = {
         user_id: userId,
         event_time: eventTime,
-        campaign_id: CAMPAIGNS[Math.floor(Math.random() * CAMPAIGNS.length)],
+        campaign_id: campaign,
         click_id: `click_${__VU}_${__ITER}`,
     };
 
