@@ -168,7 +168,7 @@ public class JoinEngine {
 
         List<PageViewEvent> toEmit = new ArrayList<>();
         synchronized (partitionBuffer) {
-            //ensuring list is synchrnozed during loop
+            //ensuring list is synchronized during loop
             for (PageViewEvent pageView : partitionBuffer) {
                 Instant safeEmitTime = pageView.getEventTime().plus(watermarkTracker.getAllowedLateness());
                 if (!watermark.isBefore(safeEmitTime)) {
